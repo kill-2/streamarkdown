@@ -32,66 +32,58 @@ class MyHeading(TextElement):
 
 Markdown.elements["heading_open"] = MyHeading
 
-console = Console(
-    theme=Theme(
-        {
-            "markdown.block_quote": "violet",
-            "markdown.hr": "medium_purple4",
-            "markdown.link_url": "sky_blue1",
-        }
-    )
-)
 
-
-def full(string):
-    console.print(Markdown(string))
-
-
-def stream(strings) -> str:
-    whole_string = ""
-    current_block = ""
-
-    def flatten_strings(strings):
-        for string in strings:
-            for char in string:
-                yield char
-
-    def block_recognized():
-        nonlocal current_block
-        md = MarkdownIt("js-default")
-        tokens_len = 0
-        for char in flatten_strings(strings):
-            current_block += char
-            tokens = md.parse(current_block)
-            new_block = (
-                tokens_len != len(tokens)
-                and current_block[-3:][:2] == "\n\n"
-                and char not in "-*123456789|"
+class Stream:
+    def __init__(self) -> None:
+        self.current_block = ""
+        self.markdown_parser = MarkdownIt("js-default")
+        self.console = Console(
+            theme=Theme(
+                {
+                    "markdown.block_quote": "violet",
+                    "markdown.hr": "medium_purple4",
+                    "markdown.link_url": "sky_blue1",
+                }
             )
-            tokens_len = len(tokens)
-            yield (char, new_block)
+        )
 
-    def new_live() -> Live:
-        live = Live(console=console, refresh_per_second=10)
-        live.start()
-        return live
+    def __call__(self, strings) -> None:
+        def flatten_strings(strings):
+            for string in strings:
+                for char in string:
+                    yield char
 
-    live = new_live()
+        def block_recognized():
+            tokens_len = 0
+            for char in flatten_strings(strings):
+                self.current_block += char
+                tokens = self.markdown_parser.parse(self.current_block)
+                new_block = (
+                    tokens_len != len(tokens)
+                    and self.current_block[-3:][:2] == "\n\n"
+                    and char not in "-*123456789|"
+                )
+                tokens_len = len(tokens)
+                yield (char, new_block)
 
-    for char, new_block in block_recognized():
-        if new_block:
-            current_block = char
-            live.stop()
-            console.print("")
-            live = new_live()
+        def new_live() -> Live:
+            live = Live(console=self.console, refresh_per_second=10)
+            live.start()
+            return live
 
-        whole_string += char
-        live.update(Markdown(current_block))
+        live = new_live()
 
-    live.stop()
+        for char, new_block in block_recognized():
+            if new_block:
+                self.current_block = char
+                live.stop()
+                self.console.print("")
+                live = new_live()
 
-    return whole_string
+            live.update(Markdown(self.current_block))
+
+        live.stop()
 
 
 def main() -> None:
-    stream(sys.stdin)
+    Stream()(sys.stdin)
