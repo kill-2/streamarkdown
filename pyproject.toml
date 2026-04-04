@@ -1,0 +1,20 @@
+[project]
+name = "streamarkdown"
+version = "0.1.0"
+description = "streaming markdown"
+readme = "README.md"
+authors = [
+    { name = "c", email = "0xe0ffff@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "markdown-it-py>=4.0.0",
+    "rich>=14.3.3",
+]
+
+[project.scripts]
+streamarkdown = "streamarkdown:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
