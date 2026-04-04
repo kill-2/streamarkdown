@@ -36,6 +36,7 @@ Markdown.elements["heading_open"] = MyHeading
 class Stream:
     def __init__(self) -> None:
         self.current_block = ""
+        self.tokens_len = 0
         self.markdown_parser = MarkdownIt("js-default")
         self.console = Console(
             theme=Theme(
@@ -46,44 +47,61 @@ class Stream:
                 }
             )
         )
+        self.live = None
 
     def __call__(self, strings) -> None:
+        if strings is None:
+            self.__stop_live()
+            return
+
+        if not self.live:
+            self.__start_live()
+
         def flatten_strings(strings):
             for string in strings:
                 for char in string:
                     yield char
 
         def block_recognized():
-            tokens_len = 0
             for char in flatten_strings(strings):
                 self.current_block += char
                 tokens = self.markdown_parser.parse(self.current_block)
                 new_block = (
-                    tokens_len != len(tokens)
+                    self.tokens_len != len(tokens)
                     and self.current_block[-3:][:2] == "\n\n"
                     and char not in "-*123456789|"
                 )
-                tokens_len = len(tokens)
+                self.tokens_len = len(tokens)
                 yield (char, new_block)
-
-        def new_live() -> Live:
-            live = Live(console=self.console, refresh_per_second=10)
-            live.start()
-            return live
-
-        live = new_live()
 
         for char, new_block in block_recognized():
             if new_block:
+                self.__stop_live()
                 self.current_block = char
-                live.stop()
                 self.console.print("")
-                live = new_live()
+                self.__start_live()
 
-            live.update(Markdown(self.current_block))
+            self.live.update(Markdown(self.current_block))
 
-        live.stop()
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.__stop_live()
+        return False
+
+    def __stop_live(self) -> None:
+        if self.live:
+            self.live.stop()
+        self.live = None
+        self.current_block = ""
+
+    def __start_live(self) -> None:
+        live = Live(console=self.console, refresh_per_second=10)
+        live.start()
+        self.live = live
 
 
 def main() -> None:
-    Stream()(sys.stdin)
+    with Stream() as stream:
+        stream(sys.stdin)
